@@ -1,12 +1,19 @@
-FROM quay.io/projectquay/golang
+FROM --platform=$BUILDPLATFORM quay.io/projectquay/golang:alpine AS build
 
-WORKDIR /app
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
+WORKDIR /src
+
 COPY . .
 
-RUN go mod tidy && \
-    go build -o app .
+RUN echo "Building on $BUILDPLATFORM for $TARGETPLATFORM" \
+  && GOOS=$(echo $TARGETPLATFORM | cut -d'/' -f1) \
+  && GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) \
+  && go build -o /out/app -v ./...
 
-FROM busybox:latest
-COPY --from=builder /app/app /app/app
+FROM alpine
 
-ENTRYPOINT ["/app/app"]
+COPY --from=build /out/app /app
+
+ENTRYPOINT ["/app"]
