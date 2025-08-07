@@ -1,19 +1,22 @@
-FROM --platform=$BUILDPLATFORM quay.io/projectquay/golang:alpine AS build
+FROM quay.io/projectquay/golang:1.24 AS builder
 
-ARG TARGETPLATFORM
-ARG BUILDPLATFORM
+ARG TARGETOS
+ARG TARGETARCH
 
-WORKDIR /src
+WORKDIR /app
+
+COPY go.mod ./
+RUN go mod download
 
 COPY . .
 
-RUN echo "Building on $BUILDPLATFORM for $TARGETPLATFORM" \
-  && GOOS=$(echo $TARGETPLATFORM | cut -d'/' -f1) \
-  && GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) \
-  && go build -o /out/app -v ./...
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /app/main .
 
-FROM alpine
+FROM builder AS test
+RUN go test -v ./...
 
-COPY --from=build /out/app /app
+FROM scratch
 
-ENTRYPOINT ["/app"]
+COPY --from=builder /app/main /main
+
+ENTRYPOINT ["/main"]
